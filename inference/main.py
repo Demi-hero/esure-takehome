@@ -1,7 +1,7 @@
 """Main pipeline: preprocess data, load XGBoost model, predict risk, and map to levels.
 
 Usage example:
-    python main.py --input data.csv --model Models/2025-11-15/xgb_modle.json
+    python main.py --input data.csv --model Models/2025-11-16/xgb_modle.json
 
 This script expects the workspace to have `model_functions.py` with preprocessing helpers.
 """
@@ -81,7 +81,7 @@ def main():
     print(risk_assigned.head(5))
 
     customers_to_investigate = risk_assigned.filter(pl.col('risk_level').is_in(['high', 'medium']))
-    customers_to_investigate.write_parquet(f'../data/{dt.date.today()}/customers_to_investigate.parquet')
+    customers_to_investigate.write_parquet(f'data/{dt.date.today()}/customers_to_investigate.parquet')
 
 if __name__ == '__main__':
     main()

@@ -387,11 +387,35 @@ def preprocessing(file_path: str, model_path: str) -> tuple[pl.DataFrame, pl.Dat
     if features is None:   
         raise ValueError("Model does not have feature names stored.")
 	
+        # List the columns that might cause a duplicate error
+    new_sum_cols = ["total_add_ons_pre_ren", "total_add_ons_post_ren"]
+    # Drop them if they exist
+    dataset_encoded = df.drop(new_sum_cols, strict=False)
+    pre_renual_add_ons = [x for x in dataset_encoded.columns if x.endswith('_pre_ren')]
+    post_renual_add_ons = [x for x in dataset_encoded.columns if x.endswith('_post_ren')]
+    # Generate columns needed for insight 
+
+    date_cols = ['cover_start', 'p1_dob']
+    date_expresions = [pl.col(c).str.to_date()for c in date_cols]
+    dataset_encoded = dataset_encoded.with_columns(date_expresions)
+
+    dataset_encoded = dataset_encoded.with_columns(
+        (pl.col("cover_start").dt.year() - pl.col("p1_dob").dt.year()).alias("p1_age"),
+        (pl.col("cover_start").dt.strftime("%b")).alias("cover_start_month"),
+        (pl.col("cover_start").dt.year() - pl.col("yearbuilt")).alias("house_age"),
+        (pl.col("sum_insured_buildings") + pl.col("sum_insured_contents")).alias("total_sum_insured"),
+        ((pl.col("ncd_granted_years_b") + pl.col("ncd_granted_years_c"))/2).alias("avg_ncd_years"),
+        (pl.sum_horizontal(pre_renual_add_ons)).alias(new_sum_cols[0]),
+        (pl.sum_horizontal(post_renual_add_ons)).alias(new_sum_cols[1]),
+        (pl.when(pl.col("p1_emp_status").is_in(["R", "E"]))
+        .then(pl.col("p1_emp_status")).otherwise(pl.lit('O')).alias("p1_emp_status_simple"))
+    ).with_columns((pl.col('total_sum_insured')/(pl.col('avg_ncd_years')+1)).alias('insured_per_ncd_year'))
+
 	# Preprocess
 	# Strip WoE from feature lis
     raw_features = [x[4:] if  x.startswith('WoE') else x for x in features]
     
-    model_data = df.select(raw_features)
+    model_data = dataset_encoded.select(raw_features)
 
     model_data = yes_no_encoding(model_data)
     
